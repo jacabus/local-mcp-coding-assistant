@@ -1,0 +1,4 @@
+# Placeholder — do not install until implementation phase.
+# Intended dependencies (V1):
+#   mcp
+#   httpx
