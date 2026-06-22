@@ -1,11 +1,11 @@
 # Local MCP Coding Assistant
 
-Proof-of-concept: can a supervising coding assistant (Claude Desktop) invoke a **local** LLM through MCP and receive a useful code-review response?
+Proof-of-concept: can a supervising coding assistant (Claude Desktop or Codex) invoke a **local** LLM through MCP and receive a useful code-review response?
 
 ## Architecture
 
 ```
-Claude Desktop
+Claude Desktop / Codex
   ↓
 MCP Tool (local_code_review)
   ↓
@@ -15,7 +15,7 @@ Ollama
   ↓
 qwen3:8b
   ↓
-Response back to Claude
+Response back to the supervising agent
 ```
 
 This repository is isolated from Atlas, FinanceBot, RetirementModel, local-ai-gateway, and all other projects under `~/Projects`.
@@ -79,6 +79,27 @@ Use absolute paths. Merge with any existing `mcpServers` entries rather than rep
 
 Restart Claude Desktop after saving.
 
+### 5. Codex MCP configuration
+
+Add to `~/.codex/config.toml` (merge with existing content; do not remove other servers):
+
+```toml
+[mcp_servers.local-mcp-coding-assistant]
+command = "/Users/julian/Projects/local-mcp-coding-assistant/.venv/bin/python"
+args = ["/Users/julian/Projects/local-mcp-coding-assistant/src/server.py"]
+enabled = true
+startup_timeout_sec = 30
+tool_timeout_sec = 120
+```
+
+`tool_timeout_sec = 120` allows time for local inference. Restart Codex after saving.
+
+Verify with:
+
+```bash
+codex mcp get local-mcp-coding-assistant
+```
+
 ## Test procedure
 
 ### Step 1 — Confirm Ollama model
@@ -113,9 +134,9 @@ Add the MCP server block shown in Setup step 4.
 
 Fully quit and reopen Claude Desktop.
 
-### Step 5 — Manual proof in Claude
+### Step 5 — Manual proof in Claude or Codex
 
-Ask Claude:
+Ask the supervising agent:
 
 ```
 Use local_code_review on this code:
@@ -124,22 +145,26 @@ def divide(a, b):
     return a / b
 ```
 
+This snippet is a **test payload only** — it is not part of any other repository.
+
 Expected:
 
-- Claude invokes `local_code_review`
+- the agent invokes `local_code_review`
 - the tool calls qwen3 through Ollama
-- Claude displays a plain-text review
+- the agent displays a plain-text review
 - the review should identify division-by-zero risk
 
 ## Success criteria
 
-1. Ollama responds locally.
-2. MCP server starts.
-3. Claude detects the MCP tool.
-4. Claude invokes `local_code_review`.
-5. qwen3 returns a review.
-6. Claude displays the response.
-7. No files outside this repository are modified.
+All seven criteria were met during Phase 2 proof:
+
+1. Ollama responds locally. ✅
+2. MCP server starts. ✅
+3. Supervising agent detects the MCP tool. ✅
+4. Supervising agent invokes `local_code_review`. ✅
+5. qwen3 returns a review. ✅
+6. Supervising agent displays the response. ✅
+7. No files outside this repository are modified. ✅
 
 ## MCP tool
 
@@ -163,4 +188,10 @@ Expected:
 
 ## Current status
 
-**Phase 2 — minimal operational proof implemented.** MCP server, Ollama wiring, and connection test are in place. Claude Desktop manual verification (Steps 3–5) is required to complete the proof.
+**Phase 2 complete — operational proof succeeded.**
+
+- MCP server, Ollama wiring, and connection test are in place.
+- Claude Desktop connector verified (`local-mcp-coding-assistant` enabled).
+- Codex connector verified (`local-mcp-coding-assistant` enabled in MCP settings).
+
+**Paused before Phase 3.** The next step is a design decision on whether any expansion is justified. No additional tools, routing, or integrations are planned until that decision is made.
