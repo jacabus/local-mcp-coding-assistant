@@ -53,6 +53,13 @@ Return exactly four things:
 {context_block}Log:
 {log_text}"""
 
+ALTERNATIVE_SOLUTION_PROMPT = """You are a senior engineer proposing an alternative implementation. Do not rewrite the code. Propose a different design or algorithm approach and explain the trade-offs versus the current implementation. Be specific and concrete.
+
+{context_block}Current implementation:
+```
+{code}
+```"""
+
 
 def load_config() -> dict:
     with CONFIG_PATH.open(encoding="utf-8") as handle:
@@ -62,10 +69,19 @@ def load_config() -> dict:
 def resolve_model(tool_name: str) -> str:
     config = load_config()
     routing = config.get("routing", {})
-    if tool_name in routing:
-        return routing[tool_name]
-    # fallback: if no routing table exists, use legacy single model key
-    return config.get("model", "qwen3:8b")
+    entry = routing.get(tool_name, {})
+    if isinstance(entry, dict):
+        return entry.get("model", config.get("model", "qwen3:8b"))
+    return entry or config.get("model", "qwen3:8b")
+
+
+def resolve_timeout(tool_name: str) -> float:
+    config = load_config()
+    routing = config.get("routing", {})
+    entry = routing.get(tool_name, {})
+    if isinstance(entry, dict):
+        return float(entry.get("timeout_seconds", config.get("timeout_seconds", 120)))
+    return float(config.get("timeout_seconds", 120))
 
 
 def build_context_block(context: str | None) -> str:
@@ -86,10 +102,13 @@ def build_log_summary_prompt(log_text: str, context: str | None) -> str:
     return LOG_SUMMARY_PROMPT.format(context_block=build_context_block(context), log_text=log_text)
 
 
-def call_ollama(prompt: str, model: str) -> str:
+def build_alternative_solution_prompt(code: str, context: str | None) -> str:
+    return ALTERNATIVE_SOLUTION_PROMPT.format(context_block=build_context_block(context), code=code)
+
+
+def call_ollama(prompt: str, model: str, timeout: float = 120) -> str:
     config = load_config()
     base_url = config["ollama_base_url"].rstrip("/")
-    timeout = float(config.get("timeout_seconds", 120))
 
     payload = {
         "model": model,
@@ -118,7 +137,9 @@ def local_code_review(code: str, context: str | None = None) -> str:
     if not code or not code.strip():
         raise ValueError("code is required")
     model = resolve_model("local_code_review")
-    return f"[{model}]\n\n" + call_ollama(build_review_prompt(code.strip(), context), model)
+    timeout = resolve_timeout("local_code_review")
+    result = call_ollama(build_review_prompt(code.strip(), context), model, timeout)
+    return f"[{model}]\n\n" + result
 
 
 @mcp.tool(name="local_test_ideas")
@@ -127,7 +148,9 @@ def local_test_ideas(code: str, context: str | None = None) -> str:
     if not code or not code.strip():
         raise ValueError("code is required")
     model = resolve_model("local_test_ideas")
-    return f"[{model}]\n\n" + call_ollama(build_test_ideas_prompt(code.strip(), context), model)
+    timeout = resolve_timeout("local_test_ideas")
+    result = call_ollama(build_test_ideas_prompt(code.strip(), context), model, timeout)
+    return f"[{model}]\n\n" + result
 
 
 @mcp.tool(name="local_log_summary")
@@ -136,7 +159,20 @@ def local_log_summary(log_text: str, context: str | None = None) -> str:
     if not log_text or not log_text.strip():
         raise ValueError("log_text is required")
     model = resolve_model("local_log_summary")
-    return f"[{model}]\n\n" + call_ollama(build_log_summary_prompt(log_text.strip(), context), model)
+    timeout = resolve_timeout("local_log_summary")
+    result = call_ollama(build_log_summary_prompt(log_text.strip(), context), model, timeout)
+    return f"[{model}]\n\n" + result
+
+
+@mcp.tool(name="local_alternative_solution")
+def local_alternative_solution(code: str, context: str | None = None) -> str:
+    """Suggest an alternative implementation approach using a local model via Ollama."""
+    if not code or not code.strip():
+        raise ValueError("code is required")
+    model = resolve_model("local_alternative_solution")
+    timeout = resolve_timeout("local_alternative_solution")
+    result = call_ollama(build_alternative_solution_prompt(code.strip(), context), model, timeout)
+    return f"[{model}]\n\n" + result
 
 
 if __name__ == "__main__":

@@ -2,8 +2,9 @@
   "ollama_base_url": "http://127.0.0.1:11434",
   "timeout_seconds": 120,
   "routing": {
-    "local_code_review": "qwen3:8b",
-    "local_test_ideas": "qwen3:8b",
-    "local_log_summary": "llama3.2:latest"
+    "local_code_review": {"model": "qwen3:8b", "timeout_seconds": 120},
+    "local_test_ideas": {"model": "qwen3:8b", "timeout_seconds": 120},
+    "local_log_summary": {"model": "llama3.2:latest", "timeout_seconds": 120},
+    "local_alternative_solution": {"model": "deepseek-r1:8b", "timeout_seconds": 300}
   }
 }
