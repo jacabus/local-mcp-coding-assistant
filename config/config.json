@@ -1,5 +1,9 @@
 {
   "ollama_base_url": "http://127.0.0.1:11434",
-  "model": "qwen3:8b",
-  "timeout_seconds": 120
+  "timeout_seconds": 120,
+  "routing": {
+    "local_code_review": "qwen3:8b",
+    "local_test_ideas": "qwen3:8b",
+    "local_log_summary": "llama3.2:latest"
+  }
 }
