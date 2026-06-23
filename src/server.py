@@ -1,4 +1,4 @@
-"""Minimal MCP server exposing local_code_review via Ollama."""
+"""MCP server exposing local_code_review and local_test_ideas via Ollama."""
 
 from __future__ import annotations
 
@@ -27,20 +27,42 @@ Be concise and specific. Do not modify the code.
 {code}
 ```"""
 
+TEST_IDEAS_PROMPT = """You are a test engineer. Suggest specific test cases for the code below and respond in plain text.
+
+For each test case, include:
+- what to test
+- the input to use
+- the expected output or behavior
+- why this case matters
+
+Cover happy paths, edge cases, and failure modes. Be concrete — use actual values, not vague descriptions. Do not modify the code.
+
+{context_block}Code to test:
+```
+{code}
+```"""
+
 
 def load_config() -> dict:
     with CONFIG_PATH.open(encoding="utf-8") as handle:
         return json.load(handle)
 
 
-def build_review_prompt(code: str, context: str | None) -> str:
-    context_block = ""
+def build_context_block(context: str | None) -> str:
     if context and context.strip():
-        context_block = f"Additional context:\n{context.strip()}\n\n"
-    return REVIEW_PROMPT.format(context_block=context_block, code=code)
+        return f"Additional context:\n{context.strip()}\n\n"
+    return ""
 
 
-def call_ollama(code: str, context: str | None) -> str:
+def build_review_prompt(code: str, context: str | None) -> str:
+    return REVIEW_PROMPT.format(context_block=build_context_block(context), code=code)
+
+
+def build_test_ideas_prompt(code: str, context: str | None) -> str:
+    return TEST_IDEAS_PROMPT.format(context_block=build_context_block(context), code=code)
+
+
+def call_ollama(prompt: str) -> str:
     config = load_config()
     base_url = config["ollama_base_url"].rstrip("/")
     model = config["model"]
@@ -48,12 +70,7 @@ def call_ollama(code: str, context: str | None) -> str:
 
     payload = {
         "model": model,
-        "messages": [
-            {
-                "role": "user",
-                "content": build_review_prompt(code, context),
-            }
-        ],
+        "messages": [{"role": "user", "content": prompt}],
         "stream": False,
     }
 
@@ -65,7 +82,7 @@ def call_ollama(code: str, context: str | None) -> str:
     message = data.get("message", {})
     content = message.get("content", "")
     if not isinstance(content, str) or not content.strip():
-        raise RuntimeError("Ollama returned an empty review response")
+        raise RuntimeError("Ollama returned an empty response")
     return content.strip()
 
 
@@ -77,7 +94,15 @@ def local_code_review(code: str, context: str | None = None) -> str:
     """Review code using the local qwen3 model via Ollama."""
     if not code or not code.strip():
         raise ValueError("code is required")
-    return call_ollama(code.strip(), context)
+    return call_ollama(build_review_prompt(code.strip(), context))
+
+
+@mcp.tool(name="local_test_ideas")
+def local_test_ideas(code: str, context: str | None = None) -> str:
+    """Suggest test cases for code using the local qwen3 model via Ollama."""
+    if not code or not code.strip():
+        raise ValueError("code is required")
+    return call_ollama(build_test_ideas_prompt(code.strip(), context))
 
 
 if __name__ == "__main__":
