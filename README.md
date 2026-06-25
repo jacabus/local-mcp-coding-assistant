@@ -1,11 +1,11 @@
 # Local MCP Coding Assistant
 
-Proof-of-concept: can a supervising coding assistant (Claude Desktop or Codex) invoke a **local** LLM through MCP and receive a useful code-review response?
+Proof-of-concept: can a supervising coding assistant (Cursor, Claude Desktop, or Codex) invoke a **local** LLM through MCP and receive a useful code-review response?
 
 ## Architecture
 
 ```
-Claude Desktop / Codex
+Cursor / Claude Desktop / Codex
   ↓
 MCP Tool (local_code_review)
   ↓
@@ -58,7 +58,29 @@ Edit `config/config.json` if needed:
 
 Use the exact model tag shown by `ollama list`.
 
-### 4. Claude Desktop MCP configuration
+### 4. Cursor MCP configuration
+
+This repo includes `.cursor/mcp.json` so Cursor can start the same MCP server as Claude Desktop and Codex. Open this project in Cursor, then:
+
+1. **Settings → Tools & MCP** — confirm `local-mcp-coding-assistant` is listed and enabled.
+2. Toggle the server off and on (or restart Cursor) after changing `src/server.py`.
+
+The config uses `${workspaceFolder}` so paths stay relative to this repo:
+
+```json
+{
+  "mcpServers": {
+    "local-mcp-coding-assistant": {
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "args": ["${workspaceFolder}/src/server.py"]
+    }
+  }
+}
+```
+
+No secrets in this file — safe to commit. Cursor talks to Ollama on `11434` directly, not through the Atlas local-ai-gateway.
+
+### 5. Claude Desktop MCP configuration
 
 Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
@@ -79,7 +101,7 @@ Use absolute paths. Merge with any existing `mcpServers` entries rather than rep
 
 Restart Claude Desktop after saving.
 
-### 5. Codex MCP configuration
+### 6. Codex MCP configuration
 
 Add to `~/.codex/config.toml` (merge with existing content; do not remove other servers):
 
@@ -126,15 +148,13 @@ The test confirms:
 - the configured model is installed
 - a review response is returned
 
-### Step 3 — Configure Claude Desktop
+### Step 3 — Enable MCP in your client
 
-Add the MCP server block shown in Setup step 4.
+- **Cursor:** open this repo; confirm `local-mcp-coding-assistant` is enabled under Settings → Tools & MCP.
+- **Claude Desktop:** add the MCP server block shown in Setup step 5; fully quit and reopen.
+- **Codex:** add the block shown in Setup step 6; restart Codex.
 
-### Step 4 — Restart Claude Desktop
-
-Fully quit and reopen Claude Desktop.
-
-### Step 5 — Manual proof in Claude or Codex
+### Step 4 — Manual proof in Cursor, Claude, or Codex
 
 Ask the supervising agent:
 
@@ -191,7 +211,10 @@ All seven criteria were met during Phase 2 proof:
 **Phase 2 complete — operational proof succeeded.**
 
 - MCP server, Ollama wiring, and connection test are in place.
+- Cursor connector: `.cursor/mcp.json` in repo (enable in Settings → Tools & MCP).
 - Claude Desktop connector verified (`local-mcp-coding-assistant` enabled).
 - Codex connector verified (`local-mcp-coding-assistant` enabled in MCP settings).
 
-**Paused before Phase 3.** The next step is a design decision on whether any expansion is justified. No additional tools, routing, or integrations are planned until that decision is made.
+**Paused before Phase 3.** No additional tools, routing, or gateway integration in this repo until the network-information stack is further along in Atlas / FinanceBot sessions.
+
+**Architecture orientation (read-only, not a build plan):** [docs/ARCHITECTURE_ORIENTATION.md](docs/ARCHITECTURE_ORIENTATION.md) — gateway v1 vs corpus substrate vs paused scope (MCP→Ollama direct, v2 task router). Active implementation belongs elsewhere; do not start parallel work from that doc.

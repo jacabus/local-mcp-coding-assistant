@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "local-mcp-coding-assistant": {
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "args": ["${workspaceFolder}/src/server.py"]
+    }
+  }
+}
