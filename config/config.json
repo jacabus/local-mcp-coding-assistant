@@ -1,10 +1,15 @@
 {
   "ollama_base_url": "http://127.0.0.1:11434",
-  "timeout_seconds": 120,
+  "model": "qwen3:8b",
+  "timeout_seconds": 50,
+  "max_input_chars": 5000,
+  "num_predict": 400,
+  "temperature": 0.2,
+  "think": false,
   "routing": {
-    "local_code_review": {"model": "qwen3:8b", "timeout_seconds": 120},
-    "local_test_ideas": {"model": "qwen3:8b", "timeout_seconds": 120},
-    "local_log_summary": {"model": "llama3.2:latest", "timeout_seconds": 120},
-    "local_alternative_solution": {"model": "deepseek-r1:8b", "timeout_seconds": 300}
+    "local_code_review": {"model": "qwen3:8b", "timeout_seconds": 50},
+    "local_test_ideas": {"model": "qwen3:8b", "timeout_seconds": 50},
+    "local_log_summary": {"model": "llama3.2:latest", "timeout_seconds": 50},
+    "local_alternative_solution": {"model": "qwen3:8b", "timeout_seconds": 50}
   }
 }

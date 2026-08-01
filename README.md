@@ -1,31 +1,36 @@
 # Local MCP Coding Assistant
 
-Proof-of-concept: can a supervising coding assistant (Cursor, Claude Desktop, or Codex) invoke a **local** LLM through MCP and receive a useful code-review response?
+Bounded local second-opinion tools for Cursor / Claude Desktop / Codex via MCP → Ollama.
+
+This is **not** a replacement for the supervising cloud agent. It wins only when it is fast, bounded, and reliable on small snippets.
 
 ## Architecture
 
 ```
 Cursor / Claude Desktop / Codex
   ↓
-MCP Tool (local_code_review)
+MCP tools (local_code_review, local_test_ideas, local_log_summary, local_alternative_solution)
   ↓
-src/server.py (this repo)
+src/server.py
   ↓
-Ollama
+Ollama :11434  (direct; gateway not wired in Phase 1)
   ↓
-qwen3:8b
-  ↓
-Response back to the supervising agent
+qwen3:8b / llama3.2:latest
 ```
 
-This repository is isolated from Atlas, FinanceBot, RetirementModel, local-ai-gateway, and all other projects under `~/Projects`.
+Isolated from Atlas, FinanceBot, RetirementModel, and `local-ai-gateway` for Phase 1. House contract prefers the gateway; that is Phase 2 only after this sync path is proven.
 
-## V1 scope
+## Bounded sync contract
 
-- **One MCP tool:** `local_code_review`
-- **One model:** `qwen3:8b` via Ollama
-- **Read-only:** no file modifications, shell execution, repository access, commits, or pushes from the MCP tool
-- **No cloud calls, routing, or extra tools**
+| Constraint | Value | Why |
+|---|---|---|
+| Max input | `max_input_chars` **5000** | Larger payloads time out in Cursor |
+| Output cap | `num_predict` **400** | Keeps latency down |
+| Thinking | `think: false` | Qwen3 default thinking blew past ~60s |
+| Server timeout | **50s** per tool | Fail before typical Cursor MCP ~60s ceiling |
+| Latency pass bar | **45s** for tiny + medium smoke | Measured with `scripts/latency_smoke.py` |
+
+Oversized input is rejected immediately with a clear error (no silent hang).
 
 ## Setup
 
@@ -33,7 +38,7 @@ This repository is isolated from Atlas, FinanceBot, RetirementModel, local-ai-ga
 
 - Python 3.10+
 - [Ollama](https://ollama.com/) running locally
-- Model installed: `qwen3:8b` (verify with `ollama list`)
+- Models: `qwen3:8b`, `llama3.2:latest` (`ollama list`)
 
 ### 2. Install dependencies
 
@@ -46,26 +51,21 @@ pip install -r requirements.txt
 
 ### 3. Configuration
 
-Edit `config/config.json` if needed:
+See [config/config.json](config/config.json):
 
-```json
-{
-  "ollama_base_url": "http://127.0.0.1:11434",
-  "model": "qwen3:8b",
-  "timeout_seconds": 120
-}
-```
+- top-level `model` fallback: `qwen3:8b`
+- per-tool `routing` (review/test/alternative → `qwen3:8b`; log summary → `llama3.2:latest`)
+- `timeout_seconds`, `max_input_chars`, `num_predict`, `temperature`, `think`
 
-Use the exact model tag shown by `ollama list`.
+### 4. Cursor MCP configuration (prefer a single registration)
 
-### 4. Cursor MCP configuration
+Use the project file [`.cursor/mcp.json`](.cursor/mcp.json). In **Settings → Tools & MCP**:
 
-This repo includes `.cursor/mcp.json` so Cursor can start the same MCP server as Claude Desktop and Codex. Open this project in Cursor, then:
+1. Enable `local-mcp-coding-assistant` from this workspace.
+2. **Disable any duplicate user-level** registration of the same server name so only one instance runs.
+3. Toggle the server off/on (or restart Cursor) after changing `src/server.py`. Cursor keeps a long-lived stdio process; until you toggle it, calls still hit the **old** code (slow `think` path, old prompts, timeouts).
 
-1. **Settings → Tools & MCP** — confirm `local-mcp-coding-assistant` is listed and enabled.
-2. Toggle the server off and on (or restart Cursor) after changing `src/server.py`.
-
-The config uses `${workspaceFolder}` so paths stay relative to this repo:
+After a toggle, prove the live path with `scripts/mcp_stdio_smoke.py` (fresh process) or a Cursor `local_code_review` on `tests/fixtures/medium_review_fixture.py`.
 
 ```json
 {
@@ -78,11 +78,13 @@ The config uses `${workspaceFolder}` so paths stay relative to this repo:
 }
 ```
 
-No secrets in this file — safe to commit. Cursor talks to Ollama on `11434` directly, not through the Atlas local-ai-gateway.
+Cursor talks to Ollama on `11434` directly in Phase 1.
 
-### 5. Claude Desktop MCP configuration
+### 5. Claude Desktop / Codex
 
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+Same absolute paths as before. For Codex, keep `tool_timeout_sec` at least **60** (server aims to finish under 50s).
+
+Claude Desktop:
 
 ```json
 {
@@ -97,13 +99,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 }
 ```
 
-Use absolute paths. Merge with any existing `mcpServers` entries rather than replacing the whole file.
-
-Restart Claude Desktop after saving.
-
-### 6. Codex MCP configuration
-
-Add to `~/.codex/config.toml` (merge with existing content; do not remove other servers):
+Codex (`~/.codex/config.toml`):
 
 ```toml
 [mcp_servers.local-mcp-coding-assistant]
@@ -111,110 +107,66 @@ command = "/Users/julian/Projects/local-mcp-coding-assistant/.venv/bin/python"
 args = ["/Users/julian/Projects/local-mcp-coding-assistant/src/server.py"]
 enabled = true
 startup_timeout_sec = 30
-tool_timeout_sec = 120
+tool_timeout_sec = 60
 ```
 
-`tool_timeout_sec = 120` allows time for local inference. Restart Codex after saving.
-
-Verify with:
-
-```bash
-codex mcp get local-mcp-coding-assistant
-```
-
-## Test procedure
-
-### Step 1 — Confirm Ollama model
-
-```bash
-ollama list
-```
-
-Record the exact `qwen3` model tag (expected: `qwen3:8b`).
-
-### Step 2 — Run connection test
+## Verification
 
 ```bash
 cd ~/Projects/local-mcp-coding-assistant
-source .venv/bin/activate
-python3 tests/test_connection.py
+.venv/bin/python tests/test_connection.py
+# expect: PASS
+
+.venv/bin/python -m pytest tests -v
+# expect: all passed (unit tests do not need Ollama; connection test is separate)
+
+.venv/bin/python scripts/latency_smoke.py
+# expect: tiny + medium under 45s, PASS
+
+.venv/bin/python scripts/mcp_stdio_smoke.py
+# expect: fresh MCP stdio medium review under 45s, PASS
 ```
 
-Expected output: `PASS`
+Then in Cursor (after toggling the MCP server so it loads current `src/server.py`), run `local_code_review` on `tests/fixtures/medium_review_fixture.py`. Expect a severity-ranked review with no `MCP error -32001`.
 
-The test confirms:
+Request telemetry (ignored by git): `logs/requests.ndjson` — one line per call with `tool`, `model`, `input_chars`, `elapsed_ms`, `ok`.
 
-- Ollama is reachable
-- the configured model is installed
-- a review response is returned
+## MCP tools
 
-### Step 3 — Enable MCP in your client
+| Tool | Model (default routing) | Input |
+|---|---|---|
+| `local_code_review` | `qwen3:8b` | `code`, optional `context` |
+| `local_test_ideas` | `qwen3:8b` | `code`, optional `context` |
+| `local_log_summary` | `llama3.2:latest` | `log_text`, optional `context` |
+| `local_alternative_solution` | `qwen3:8b` | `code`, optional `context` |
 
-- **Cursor:** open this repo; confirm `local-mcp-coding-assistant` is enabled under Settings → Tools & MCP.
-- **Claude Desktop:** add the MCP server block shown in Setup step 5; fully quit and reopen.
-- **Codex:** add the block shown in Setup step 6; restart Codex.
+## Out of scope (Phase 1)
 
-### Step 4 — Manual proof in Cursor, Claude, or Codex
-
-Ask the supervising agent:
-
-```
-Use local_code_review on this code:
-
-def divide(a, b):
-    return a / b
-```
-
-This snippet is a **test payload only** — it is not part of any other repository.
-
-Expected:
-
-- the agent invokes `local_code_review`
-- the tool calls qwen3 through Ollama
-- the agent displays a plain-text review
-- the review should identify division-by-zero risk
-
-## Success criteria
-
-All seven criteria were met during Phase 2 proof:
-
-1. Ollama responds locally. ✅
-2. MCP server starts. ✅
-3. Supervising agent detects the MCP tool. ✅
-4. Supervising agent invokes `local_code_review`. ✅
-5. qwen3 returns a review. ✅
-6. Supervising agent displays the response. ✅
-7. No files outside this repository are modified. ✅
-
-## MCP tool
-
-**Name:** `local_code_review`
-
-**Inputs:**
-
-- `code` (required)
-- `context` (optional)
-
-**Output:** plain-text code review covering bugs, logic issues, security concerns, simplification opportunities, and missing tests.
-
-## Out of scope
-
-- Multiple tools or models
-- Model routing
-- DeepSeek or other cloud providers
-- Secret redaction pipelines
-- File editing, shell execution, git operations from the MCP tool
-- Atlas, FinanceBot, RetirementModel, or local-ai-gateway integration
+- Atlas / FinanceBot / gateway wiring
+- Full-file or multi-file reviews
+- Streaming / async job tools
+- Cloud models
 
 ## Current status
 
-**Phase 2 complete — operational proof succeeded.**
+**Phase 1 — bounded sync path implemented.** Goal: reliable local second opinion under Cursor’s MCP timeout wall.
 
-- MCP server, Ollama wiring, and connection test are in place.
-- Cursor connector: `.cursor/mcp.json` in repo (enable in Settings → Tools & MCP).
-- Claude Desktop connector verified (`local-mcp-coding-assistant` enabled).
-- Codex connector verified (`local-mcp-coding-assistant` enabled in MCP settings).
+Verified this session (fresh evidence):
 
-**Paused before Phase 3.** No additional tools, routing, or gateway integration in this repo until the network-information stack is further along in Atlas / FinanceBot sessions.
+- `tests/test_connection.py` → `PASS` (~1.4s)
+- `pytest tests/test_server_unit.py` → 7 passed
+- `scripts/latency_smoke.py` → tiny ~1.5s, medium ~7s
+- `scripts/mcp_stdio_smoke.py` → medium MCP stdio ~15s
+- Oversized input rejected immediately; `logs/requests.ndjson` records `tool` / `model` / `input_chars` / `elapsed_ms` / `ok`
 
-**Architecture orientation (read-only, not a build plan):** [docs/ARCHITECTURE_ORIENTATION.md](docs/ARCHITECTURE_ORIENTATION.md) — gateway v1 vs corpus substrate vs paused scope (MCP→Ollama direct, v2 task router). Active implementation belongs elsewhere; do not start parallel work from that doc.
+**Cursor IDE note:** if `local_code_review` still times out on medium snippets, the IDE is still running a stale MCP process. Toggle the project MCP server off/on (and disable the user-level duplicate). Do not judge the new code until after that reload.
+
+### Phase 2 — deferred (do not start yet)
+
+Pick from measured need only:
+
+1. Thin client to gateway `POST /generate` (house-contract alignment; this repo only; no Atlas edits)
+2. Async `start` + `status` tools for full-file reviews
+3. Model A/B (`llama3.2` vs `qwen3:8b`) on a fixed fixture set
+
+Architecture orientation (read-only): [docs/ARCHITECTURE_ORIENTATION.md](docs/ARCHITECTURE_ORIENTATION.md).
