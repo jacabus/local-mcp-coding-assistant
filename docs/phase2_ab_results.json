@@ -1,0 +1,101 @@
+{
+  "models": {
+    "qwen3:8b": {
+      "rows": [
+        {
+          "fixture": "divide_zero_bug",
+          "elapsed_sec": 6.63,
+          "required_hit": true,
+          "forbidden_hits": [],
+          "invented_critical": false,
+          "ok": true,
+          "preview": "Low: Use of '/' operator may cause division by zero if 'b' is zero."
+        },
+        {
+          "fixture": "clean_pure_function",
+          "elapsed_sec": 1.0,
+          "required_hit": true,
+          "forbidden_hits": [],
+          "invented_critical": false,
+          "ok": true,
+          "preview": "No serious issues found."
+        },
+        {
+          "fixture": "tiny_http_client",
+          "elapsed_sec": 6.15,
+          "required_hit": true,
+          "forbidden_hits": [],
+          "invented_critical": false,
+          "ok": true,
+          "preview": "- Critical: Use of `urlopen` without validating or sanitizing the URL can lead to SSRF vulnerabilities if the URL is not properly controlled. - High: No error handling for network failures or invalid URLs. - Medium: No t"
+        },
+        {
+          "fixture": "shell_no_network",
+          "elapsed_sec": 2.23,
+          "required_hit": true,
+          "forbidden_hits": [],
+          "invented_critical": false,
+          "ok": true,
+          "preview": "- Low: Use of `str(path)` could lead to incorrect results if path contains non-ASCII characters."
+        }
+      ],
+      "required_ok": 4,
+      "invented_count": 0,
+      "fixture_ok": 4,
+      "total_latency_sec": 16.02,
+      "avg_latency_sec": 4.0
+    },
+    "llama3.2:latest": {
+      "rows": [
+        {
+          "fixture": "divide_zero_bug",
+          "elapsed_sec": 3.57,
+          "required_hit": true,
+          "forbidden_hits": [],
+          "invented_critical": false,
+          "ok": true,
+          "preview": "* Critical: Division by zero vulnerability * High: Lack of input validation * Medium: No error handling for invalid inputs * Low: Code organization and naming conventions are unclear"
+        },
+        {
+          "fixture": "clean_pure_function",
+          "elapsed_sec": 1.97,
+          "required_hit": true,
+          "forbidden_hits": [],
+          "invented_critical": false,
+          "ok": true,
+          "preview": "• Low: Missing type hint for `low` and `high`. • Medium: Function name `clamp` does not follow PEP 8 naming convention (should be `clamped`). • High: No input validation for `value`, `low`, and `high`."
+        },
+        {
+          "fixture": "tiny_http_client",
+          "elapsed_sec": 2.89,
+          "required_hit": true,
+          "forbidden_hits": [],
+          "invented_critical": false,
+          "ok": true,
+          "preview": "• Critical: `urlopen` function does not handle exceptions properly. • High: The `errors` parameter in the `decode` method is set to `\"replace\"`, which may mask encoding issues. • Medium: The `timeout` parameter in the `u"
+        },
+        {
+          "fixture": "shell_no_network",
+          "elapsed_sec": 3.25,
+          "required_hit": true,
+          "forbidden_hits": [],
+          "invented_critical": false,
+          "ok": true,
+          "preview": "• Low: The code does not follow PEP 8 naming conventions (e.g., `list_py_files` should be `list_python_files`, `read_first_line` should be `read_first_line`). • Medium: The function `read_first_line` assumes the file has"
+        }
+      ],
+      "required_ok": 4,
+      "invented_count": 0,
+      "fixture_ok": 4,
+      "total_latency_sec": 11.67,
+      "avg_latency_sec": 2.92
+    }
+  },
+  "winner": "qwen3:8b",
+  "rationale": "Quality tied (fixture_ok=4/4, invented=0). llama3.2 was faster (avg 2.92s vs 4.0s) but locking qwen3:8b to avoid Atlas contention on llama3.2.",
+  "ollama_gate_pre_ab": {
+    "observed": ["nomic-embed-text:latest"],
+    "llama3.2_active": false,
+    "note": "Earlier in session llama3.2 was loaded (Atlas); waited until only idle embed remained before A/B."
+  }
+}

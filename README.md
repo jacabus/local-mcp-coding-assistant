@@ -125,6 +125,10 @@ cd ~/Projects/local-mcp-coding-assistant
 
 .venv/bin/python scripts/mcp_stdio_smoke.py
 # expect: fresh MCP stdio medium review under 45s, PASS
+
+# Only when Ollama /api/ps shows no llama3.2 (Atlas free):
+.venv/bin/python scripts/quality_regression.py
+# expect: PASS
 ```
 
 Then in Cursor (after toggling the MCP server so it loads current `src/server.py`), run `local_code_review` on `tests/fixtures/medium_review_fixture.py`. Expect a severity-ranked review with no `MCP error -32001`.
@@ -140,33 +144,42 @@ Request telemetry (ignored by git): `logs/requests.ndjson` — one line per call
 | `local_log_summary` | `llama3.2:latest` | `log_text`, optional `context` |
 | `local_alternative_solution` | `qwen3:8b` | `code`, optional `context` |
 
-## Out of scope (Phase 1)
+## Review quality contract (Phase 2)
 
-- Atlas / FinanceBot / gateway wiring
+`local_code_review` must stay useful on small snippets:
+
+- Cite only symbols present in the code
+- Never invent protocols, URLs, TLS/SSL, frameworks, or APIs that are not in the snippet
+- If nothing serious is wrong, say so briefly
+- At most 8 severity-ranked bullets
+
+Fixtures and expectations: [tests/fixtures/quality/](tests/fixtures/quality/). Offline scoring lives in `tests/test_review_quality.py`. Live checks (Ollama must be free — do not steal Atlas `llama3.2`):
+
+```bash
+.venv/bin/python scripts/review_quality_ab.py   # A/B qwen3:8b vs llama3.2:latest
+.venv/bin/python scripts/quality_regression.py  # locked review model vs fixtures
+```
+
+Results and model lock notes: [docs/PHASE2_QUALITY_PLAN.md](docs/PHASE2_QUALITY_PLAN.md).
+
+## Out of scope
+
+- Atlas / FinanceBot / gateway wiring (Phase 1–2 quality work stays direct Ollama)
 - Full-file or multi-file reviews
 - Streaming / async job tools
 - Cloud models
 
 ## Current status
 
-**Phase 1 — bounded sync path implemented.** Goal: reliable local second opinion under Cursor’s MCP timeout wall.
+**Phase 1 — bounded sync path.** Reliable local second opinion under Cursor’s MCP timeout wall.
 
-Verified this session (fresh evidence):
+**Phase 2 — review quality.** Hardened `REVIEW_PROMPT`, quality fixtures, A/B + regression scripts. Prefer keeping `local_code_review` on `qwen3:8b` when quality is close, so Atlas can keep using `llama3.2`.
 
-- `tests/test_connection.py` → `PASS` (~1.4s)
-- `pytest tests/test_server_unit.py` → 7 passed
-- `scripts/latency_smoke.py` → tiny ~1.5s, medium ~7s
-- `scripts/mcp_stdio_smoke.py` → medium MCP stdio ~15s
-- Oversized input rejected immediately; `logs/requests.ndjson` records `tool` / `model` / `input_chars` / `elapsed_ms` / `ok`
+**Cursor IDE note:** if `local_code_review` still times out on medium snippets, the IDE is still running a stale MCP process. Toggle the project MCP server off/on (and disable the user-level duplicate).
 
-**Cursor IDE note:** if `local_code_review` still times out on medium snippets, the IDE is still running a stale MCP process. Toggle the project MCP server off/on (and disable the user-level duplicate). Do not judge the new code until after that reload.
-
-### Phase 2 — deferred (do not start yet)
-
-Pick from measured need only:
+Still deferred (pick from measured need):
 
 1. Thin client to gateway `POST /generate` (house-contract alignment; this repo only; no Atlas edits)
 2. Async `start` + `status` tools for full-file reviews
-3. Model A/B (`llama3.2` vs `qwen3:8b`) on a fixed fixture set
 
 Architecture orientation (read-only): [docs/ARCHITECTURE_ORIENTATION.md](docs/ARCHITECTURE_ORIENTATION.md).

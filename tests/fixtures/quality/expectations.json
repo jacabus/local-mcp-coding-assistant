@@ -1,0 +1,76 @@
+{
+  "fixtures": [
+    {
+      "id": "divide_zero_bug",
+      "path": "divide_zero_bug.py",
+      "required_any": [
+        "zero",
+        "ZeroDivision",
+        "division by zero",
+        "b == 0",
+        "b=0",
+        "/ 0",
+        "divide by"
+      ],
+      "forbidden_substrings": [
+        "TLS",
+        "SSL",
+        "https://",
+        "localhost",
+        "certificate"
+      ],
+      "notes": "Must flag unchecked divide(a, b) zero-division risk. Must not invent HTTP/TLS."
+    },
+    {
+      "id": "clean_pure_function",
+      "path": "clean_pure_function.py",
+      "required_any": [],
+      "forbid_invented_network": true,
+      "forbidden_substrings": [
+        "TLS",
+        "SSL",
+        "https://",
+        "http://",
+        "localhost",
+        "certificate",
+        "urllib",
+        "requests"
+      ],
+      "notes": "Clean pure clamp(). Must NOT invent HTTP/TLS/network findings. OK to say nothing serious."
+    },
+    {
+      "id": "tiny_http_client",
+      "path": "tiny_http_client.py",
+      "required_any": [],
+      "allow_http_mentions": true,
+      "forbidden_substrings": [],
+      "forbid_tls_unless_present": true,
+      "code_contains_tls": false,
+      "notes": "May mention HTTP/urlopen because present. Must not invent TLS/SSL unless TLS appears in the code."
+    },
+    {
+      "id": "shell_no_network",
+      "path": "shell_no_network.py",
+      "required_any": [],
+      "forbid_invented_network": true,
+      "forbidden_substrings": [
+        "TLS",
+        "SSL",
+        "https://",
+        "http://",
+        "localhost",
+        "certificate",
+        "socket",
+        "urllib"
+      ],
+      "notes": "Filesystem-only helpers. Must not invent TLS/HTTP/network findings."
+    }
+  ],
+  "invented_critical_patterns": [
+    "Critical.*TLS",
+    "Critical.*SSL",
+    "Critical.*localhost",
+    "Critical.*certificate",
+    "Critical.*HTTPS"
+  ]
+}
