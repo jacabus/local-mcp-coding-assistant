@@ -15,7 +15,7 @@ src/server.py
   ↓
 Ollama :11434  (direct; gateway not wired in Phase 1)
   ↓
-qwen3:8b / llama3.2:latest
+qwen2.5-coder:7b / qwen3:8b / llama3.2:latest
 ```
 
 Isolated from Atlas, FinanceBot, RetirementModel, and `local-ai-gateway` for Phase 1. House contract prefers the gateway; that is Phase 2 only after this sync path is proven.
@@ -38,7 +38,7 @@ Oversized input is rejected immediately with a clear error (no silent hang).
 
 - Python 3.10+
 - [Ollama](https://ollama.com/) running locally
-- Models: `qwen3:8b`, `llama3.2:latest` (`ollama list`)
+- Models: `qwen2.5-coder:7b`, `qwen3:8b`, `llama3.2:latest` (`ollama list`)
 
 ### 2. Install dependencies
 
@@ -53,8 +53,8 @@ pip install -r requirements.txt
 
 See [config/config.json](config/config.json):
 
-- top-level `model` fallback: `qwen3:8b`
-- per-tool `routing` (review/test/alternative → `qwen3:8b`; log summary → `llama3.2:latest`)
+- top-level `model` fallback: `qwen2.5-coder:7b` (unrouted-tool safety net; matches the code-specialised model validated for the two core code tools — see rationale below)
+- per-tool `routing`: `local_code_review` and `local_test_ideas` → `qwen2.5-coder:7b`; `local_alternative_solution` → `qwen3:8b`; `local_log_summary` → `llama3.2:latest`
 - `timeout_seconds`, `max_input_chars`, `num_predict`, `temperature`, `think`
 
 ### 4. Cursor MCP configuration (prefer a single registration)
@@ -139,10 +139,14 @@ Request telemetry (ignored by git): `logs/requests.ndjson` — one line per call
 
 | Tool | Model (default routing) | Input |
 |---|---|---|
-| `local_code_review` | `qwen3:8b` | `code`, optional `context` |
-| `local_test_ideas` | `qwen3:8b` | `code`, optional `context` |
+| `local_code_review` | `qwen2.5-coder:7b` | `code`, optional `context` |
+| `local_test_ideas` | `qwen2.5-coder:7b` | `code`, optional `context` |
 | `local_log_summary` | `llama3.2:latest` | `log_text`, optional `context` |
 | `local_alternative_solution` | `qwen3:8b` | `code`, optional `context` |
+
+### Fallback model decision (2026-08-20)
+
+`config.model` / `server.DEFAULT_MODEL` moved from `qwen3:8b` to `qwen2.5-coder:7b`. This fallback only fires for a tool name absent from `routing` (e.g. a future tool added without an explicit entry) — normal calls always resolve through the per-tool `routing` table above. With the validated routing in place, the two core code-facing tools (`local_code_review`, `local_test_ideas` — the majority of routed tools, and this project's primary purpose per its name) now run on the code-specialised `qwen2.5-coder:7b`. A future unrouted tool on a "coding assistant" server is more likely to be code-shaped than general-reasoning-shaped, so the safety-net default now matches that model rather than the general-purpose `qwen3:8b`, which remains explicitly routed for `local_alternative_solution` only.
 
 ## Review quality contract (Phase 2)
 
@@ -173,7 +177,7 @@ Results and model lock notes: [docs/PHASE2_QUALITY_PLAN.md](docs/PHASE2_QUALITY_
 
 **Phase 1 — bounded sync path.** Reliable local second opinion under Cursor’s MCP timeout wall.
 
-**Phase 2 — review quality.** Hardened `REVIEW_PROMPT`, quality fixtures, A/B + regression scripts. Prefer keeping `local_code_review` on `qwen3:8b` when quality is close, so Atlas can keep using `llama3.2`.
+**Phase 2 — review quality.** Hardened `REVIEW_PROMPT`, quality fixtures, A/B + regression scripts. The Phase 2 A/B (`docs/PHASE2_QUALITY_PLAN.md`, `docs/phase2_ab_results.json`) locked `local_code_review` on `qwen3:8b` vs `llama3.2:latest`, avoiding Atlas contention on `llama3.2`; that A/B result is preserved as historical evidence. **Phase 3 model validation** superseded that lock: `local_code_review` and `local_test_ideas` now route to `qwen2.5-coder:7b` (see [Fallback model decision](#fallback-model-decision-2026-08-20) above); `local_alternative_solution` stays on `qwen3:8b`; `local_log_summary` stays on `llama3.2:latest`.
 
 **Cursor IDE note:** if `local_code_review` still times out on medium snippets, the IDE is still running a stale MCP process. Toggle the project MCP server off/on (and disable the user-level duplicate).
 

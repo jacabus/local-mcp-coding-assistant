@@ -15,7 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = REPO_ROOT / "config" / "config.json"
 LOG_PATH = REPO_ROOT / "logs" / "requests.ndjson"
 
-DEFAULT_MODEL = "qwen3:8b"
+DEFAULT_MODEL = "qwen2.5-coder:7b"
 DEFAULT_TIMEOUT_SECONDS = 50.0
 DEFAULT_MAX_INPUT_CHARS = 5000
 DEFAULT_NUM_PREDICT = 400
