@@ -144,6 +144,8 @@ Request telemetry (ignored by git): `logs/requests.ndjson` — one line per call
 | `local_log_summary` | `llama3.2:latest` | `log_text`, optional `context` |
 | `local_alternative_solution` | `qwen3:8b` | `code`, optional `context` |
 
+Validation evidence for this routing (local controlled comparisons, not production-volume benchmarks): [docs/ROUTING_MODEL_VALIDATION.md](docs/ROUTING_MODEL_VALIDATION.md).
+
 ### Fallback model decision (2026-08-20)
 
 `config.model` / `server.DEFAULT_MODEL` moved from `qwen3:8b` to `qwen2.5-coder:7b`. This fallback only fires for a tool name absent from `routing` (e.g. a future tool added without an explicit entry) — normal calls always resolve through the per-tool `routing` table above. With the validated routing in place, the two core code-facing tools (`local_code_review`, `local_test_ideas` — the majority of routed tools, and this project's primary purpose per its name) now run on the code-specialised `qwen2.5-coder:7b`. A future unrouted tool on a "coding assistant" server is more likely to be code-shaped than general-reasoning-shaped, so the safety-net default now matches that model rather than the general-purpose `qwen3:8b`, which remains explicitly routed for `local_alternative_solution` only.
