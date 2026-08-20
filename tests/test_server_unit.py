@@ -47,7 +47,7 @@ def test_test_ideas_prompt_requires_concrete_cases() -> None:
 def test_config_routes_all_tools_to_installed_models() -> None:
     """deepseek-r1 is not installed; routing must not point at it."""
     config = server.load_config()
-    allowed = {"qwen3:8b", "llama3.2:latest", "llama3.2"}
+    allowed = {"qwen2.5-coder:7b", "qwen3:8b", "llama3.2:latest", "llama3.2"}
     for tool_name in (
         "local_code_review",
         "local_test_ideas",
@@ -61,7 +61,7 @@ def test_config_routes_all_tools_to_installed_models() -> None:
 
 def test_top_level_model_present_for_fallback() -> None:
     config = server.load_config()
-    assert config.get("model") == "qwen3:8b"
+    assert config.get("model") == "qwen2.5-coder:7b"
 
 
 def test_call_ollama_payload_includes_think_and_options(monkeypatch: pytest.MonkeyPatch) -> None:
